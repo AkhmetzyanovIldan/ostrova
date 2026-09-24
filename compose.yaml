@@ -1,0 +1,23 @@
+services:
+  game:
+    build: .
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATA_DIR: /app/data
+      PUBLIC_URL: ${PUBLIC_URL:?Set the public HTTPS origin}
+      BOT_TOKEN: ${BOT_TOKEN:?Set the bot token in .env}
+      BOT_USERNAME: ${BOT_USERNAME:?Set the bot username without @}
+      TELEGRAM_APP_NAME: ${TELEGRAM_APP_NAME:-}
+      ALLOW_GUESTS: "false"
+    volumes:
+      - game-data:/app/data
+    ports:
+      - "127.0.0.1:3000:3000"
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  game-data:

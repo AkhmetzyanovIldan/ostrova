@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: antiyoy-friends
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    numInstances: 1
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATA_DIR
+        value: /app/data
+      - key: ALLOW_GUESTS
+        value: "false"
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_USERNAME
+        sync: false
+      - key: TELEGRAM_APP_NAME
+        value: ""
+    disk:
+      name: antiyoy-data
+      mountPath: /app/data
+      sizeGB: 1
