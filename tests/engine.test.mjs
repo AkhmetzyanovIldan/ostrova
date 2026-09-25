@@ -25,7 +25,7 @@ test('merging two ready units preserves readiness',()=>{let s=fresh(),p=s.provin
 test('merging into a spent unit cannot restore its move',()=>{let s=fresh(),p=s.provinces[0],ids=p.cells.filter(id=>!s.cells[id].building);s.cells[ids[0]].unit={level:1,moved:false};s.cells[ids[1]].unit={level:2,moved:true};s=applyAction(s,0,{type:'move',from:ids[0],to:ids[1]});assert.deepEqual(s.cells[ids[1]].unit,{level:3,moved:true})});
 test('clearing a friendly tree awards three gold, spends the move',()=>{let s=fresh(),p=s.provinces[0],to=free(s,p);s.cells[to].tree='pine';s=applyAction(s,0,{type:'recruit',province:p.capital,to,level:1});assert.equal(s.provinces[0].money,3);assert.equal(s.cells[to].tree,null);assert.equal(s.cells[to].unit.moved,true)});
 test('farm adjacency, price escalation and income',()=>{let s=fresh(),p=s.provinces[0];p.money=100;const to=free(s,p);s=applyAction(s,0,{type:'build',building:'farm',province:p.capital,to});p=provinceAt(s,to);assert.equal(p.money,88);assert.equal(farmCost(s,p),14);assert.equal(income(s,p),11)});
-test('towers have the correct maintenance costs',()=>{const s=fresh(),p=s.provinces[0],ids=p.cells.filter(id=>!s.cells[id].building);s.cells[ids[0]].building='tower';s.cells[ids[1]].building='fort';assert.equal(upkeep(s,p),7)});
+test('towers have the correct maintenance costs',()=>{const s=fresh(),p=s.provinces[0],ids=p.cells.filter(id=>!s.cells[id].building);s.cells[ids[0]].building='tower';s.cells[ids[1]].building='fort';assert.equal(upkeep(s,p),6)});
 test('players begin with equal gold despite going second',()=>{let s=fresh();s=applyAction(s,0,{type:'end'});assert.equal(s.provinces.find(p=>p.owner===1).money,10);s=applyAction(s,1,{type:'end'});assert.equal(s.round,2);assert.equal(s.provinces.find(p=>p.owner===0).money,17)});
 test('bankruptcy kills all troops; graves turn into trees one own turn later',()=>{let s=fresh(),p=s.provinces[0],to=free(s,p);p.money=0;s.cells[to].unit={level:4,moved:false};s=applyAction(s,0,{type:'end'});s=applyAction(s,1,{type:'end'});assert.equal(s.cells[to].unit,null);assert.equal(s.cells[to].grave,true);assert.equal(provinceAt(s,to).money,0);s=applyAction(s,0,{type:'end'});s=applyAction(s,1,{type:'end'});assert.equal(s.cells[to].grave,false);assert.ok(s.cells[to].tree)});
 test('splitting a province gives the treasury to the largest remnant',()=>{
@@ -47,4 +47,17 @@ test('strong tower replacement costs the full 35; graves can be built over',()=>
   let s=fresh(),p=s.provinces[0],to=free(s,p);p.money=60;s.cells[to].building='tower';
   s=applyAction(s,0,{type:'build',province:p.capital,to,building:'fort'});assert.equal(provinceAt(s,to).money,25);assert.equal(s.cells[to].building,'fort');
   const empty=free(s,provinceAt(s,to));s.cells[empty].grave=true;s=applyAction(s,0,{type:'build',province:p.capital,to:empty,building:'tower'});assert.equal(s.cells[empty].grave,false);
+});
+
+test('ordinary towers are free to maintain and keep defense two',()=>{
+  const s=fresh(),p=s.provinces[0],to=free(s,p);s.cells[to].building='tower';
+  assert.equal(upkeep(s,p),0);assert.equal(defense(s,to),2);
+  assert.equal(defense(s,p.capital),2);assert.equal(income(s,p),7);
+});
+test('surrender outside your turn preserves the active player in a three-player game',()=>{
+  const s=createGame(generateMap({seed:18,players:3,trees:false}));
+  const next=applyAction(s,1,{type:'surrender'});
+  assert.equal(next.turn,0);assert.equal(next.ply,0);assert.equal(next.winner,null);
+  assert.ok(next.eliminated.includes(1));assert.equal(next.log.at(-1).player,1);
+  assert.throws(()=>applyAction(next,1,{type:'surrender'}),/выбыли/);
 });

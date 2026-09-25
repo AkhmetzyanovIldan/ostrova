@@ -32,7 +32,7 @@ export function income(state,province) {
   return province.cells.reduce((sum,id)=>sum+(state.cells[id].tree ? 0 : 1)+(state.cells[id].building==='farm'?4:0),0);
 }
 export function upkeep(state,province) {
-  return province.cells.reduce((sum,id)=>sum+UPKEEP[state.cells[id].unit?.level||0]+(state.cells[id].building==='fort'?6:state.cells[id].building==='tower'?1:0),0);
+  return province.cells.reduce((sum,id)=>sum+UPKEEP[state.cells[id].unit?.level||0]+(state.cells[id].building==='fort'?6:0),0);
 }
 export function farmCost(state,province) { return 12+2*province.cells.filter(id=>state.cells[id].building==='farm').length; }
 export function defense(state,id) {
@@ -144,7 +144,7 @@ export function createGame(map) {
   for(const p of state.provinces) p.money=map.startingMoney;
   return state;
 }
-function addLog(state,text) { state.log.push({ply:state.ply,round:state.round,player:state.turn,text}); state.log=state.log.slice(-60); }
+function addLog(state,text,player=state.turn) { state.log.push({ply:state.ply,round:state.round,player,text}); state.log=state.log.slice(-60); }
 function ownProvince(state,owner,id) {
   const p=provinceAt(state,id);
   requireRule(p&&p.owner===owner,'Выберите свою провинцию'); return p;
@@ -181,6 +181,15 @@ export function legalTargets(state,from,levelOverride) {
   const p=provinceAt(state,from), c=state.cells[from]; if(!p||p.owner!==state.turn) return [];
   const level=levelOverride||c?.unit?.level; if(!level||(!levelOverride&&c.unit.moved))return [];
   return Object.keys(state.cells).filter(id=>{try{canLand(state,p,id,level,levelOverride?null:from);return id!==from||!!levelOverride}catch{return false}});
+}
+export function buildingTargets(state,provinceId,building){
+  const p=provinceAt(state,provinceId);
+  if(!p||p.owner!==state.turn)return [];
+  return p.cells.filter(id=>{
+    const c=state.cells[id];
+    if(c.unit||c.tree||(c.building&&!(building==='fort'&&c.building==='tower'))||(building==='tree'&&c.grave))return false;
+    return building!=='farm'||neighbors(c).some(n=>p.cells.includes(n)&&['capital','farm'].includes(state.cells[n].building));
+  });
 }
 function growTrees(state) {
   const old=structuredClone(state.cells), candidates=[];
@@ -227,8 +236,9 @@ function advanceTurn(state) {
 }
 export function applyAction(input,owner,action) {
   requireRule(input.winner===null,'Партия уже завершена');
-  requireRule(owner===input.turn,'Сейчас ход другого игрока');
   requireRule(action&&typeof action==='object','Некорректный ход');
+  requireRule(Number.isInteger(owner)&&owner>=0&&owner<input.playerCount&&!input.eliminated.includes(owner),'Вы уже выбыли из партии');
+  requireRule(owner===input.turn||action.type==='surrender','Сейчас ход другого игрока');
   const state=structuredClone(input), {type,to,from}=action;
   if(type==='end') {
     addLog(state,`${COLOR_NAMES[owner]} завершили ход`); advanceTurn(state); return state;
@@ -236,7 +246,7 @@ export function applyAction(input,owner,action) {
   if(type==='surrender') {
     state.eliminated.push(owner);
     for(const c of Object.values(state.cells))if(c.owner===owner){c.owner=-1;c.unit=null;c.building=null;}
-    rebuildProvinces(state);addLog(state,`${COLOR_NAMES[owner]} сдались`);updateWinner(state);advanceTurn(state);return state;
+    rebuildProvinces(state);addLog(state,`${COLOR_NAMES[owner]} сдались`,owner);updateWinner(state);if(owner===state.turn)advanceTurn(state);return state;
   }
   if(type==='move') {
     const c=state.cells[from]; requireRule(c?.owner===owner&&c.unit,'Выберите свой отряд');

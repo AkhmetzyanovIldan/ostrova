@@ -6,6 +6,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { applyAction, createGame, generateMap, validateMap } from '../shared/engine.mjs';
 import { validateTelegramInitData, makeToken, hashToken } from './auth.mjs';
+import {makeUndoPatch,restoreUndoPatch} from './undo.mjs';
+import {RoomMessages} from './messages.mjs';
 
 const root=path.resolve(fileURLToPath(new URL('..',import.meta.url)));
 const dataDir=path.resolve(process.env.DATA_DIR||path.join(root,'data'));
@@ -14,8 +16,11 @@ const db=new DatabaseSync(path.join(dataDir,'antiyoy.sqlite'));
 db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
   CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user TEXT NOT NULL,expires INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS rooms(code TEXT PRIMARY KEY,body TEXT NOT NULL,updated INTEGER NOT NULL);
-  CREATE TABLE IF NOT EXISTS maps(id TEXT PRIMARY KEY,owner TEXT NOT NULL,name TEXT NOT NULL,body TEXT NOT NULL,updated INTEGER NOT NULL);`);
-const streams=new Map(), rate=new Map();
+  CREATE TABLE IF NOT EXISTS maps(id TEXT PRIMARY KEY,owner TEXT NOT NULL,name TEXT NOT NULL,body TEXT NOT NULL,updated INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS room_undo(id INTEGER PRIMARY KEY AUTOINCREMENT,room TEXT NOT NULL,body TEXT NOT NULL);
+  CREATE INDEX IF NOT EXISTS undo_room ON room_undo(room,id);`);
+const streams=new Map(), rate=new Map(), messages=new RoomMessages();
+const lastUndo=code=>db.prepare('SELECT id,body FROM room_undo WHERE room=? ORDER BY id DESC LIMIT 1').get(code);
 const production=process.env.NODE_ENV==='production';
 const guestAllowed=process.env.ALLOW_GUESTS==='true'||(!production&&process.env.ALLOW_GUESTS!=='false');
 const publicOrigin=process.env.PUBLIC_URL ? new URL(process.env.PUBLIC_URL).origin : process.env.RENDER_EXTERNAL_URL ? new URL(process.env.RENDER_EXTERNAL_URL).origin : null;
@@ -42,7 +47,7 @@ function loadRoom(code){const row=db.prepare('SELECT body FROM rooms WHERE code=
 function seatOf(room,user){return room.players.find(p=>p.id===user.id)}
 function requireMember(room,user){if(!seatOf(room,user))error('Сначала присоединитесь к комнате',403)}
 function presence(code,id){return [...(streams.get(code)||[])].some(s=>s.user.id===id)}
-function publicRoom(room,user){return {code:room.code,name:room.name,capacity:room.capacity,status:room.status,revision:room.revision,host:room.host===user.id,me:seatOf(room,user)?.seat??-1,players:room.players.map(p=>({name:p.name,seat:p.seat,ready:p.ready,host:p.id===room.host,online:presence(room.code,p.id)})),map:room.map,game:room.game,updated:room.updated}}
+function publicRoom(room,user){return {code:room.code,name:room.name,capacity:room.capacity,status:room.status,revision:room.revision,host:room.host===user.id,me:seatOf(room,user)?.seat??-1,players:room.players.map(p=>({name:p.name,seat:p.seat,ready:p.ready,host:p.id===room.host,online:presence(room.code,p.id)})),map:room.map,game:room.game,canUndo:room.status==='playing'&&room.game?.turn===seatOf(room,user)?.seat&&!!lastUndo(room.code),messages:messages.active(room.code),serverTime:Date.now(),updated:room.updated}}
 function broadcast(room){for(const stream of streams.get(room.code)||[])stream.res.write(`id: ${room.revision}\nevent: room\ndata: ${JSON.stringify(publicRoom(room,stream.user))}\n\n`)}
 function commit(room){room.revision++;saveRoom(room);broadcast(room)}
 function memberRooms(user){return db.prepare('SELECT body FROM rooms ORDER BY updated DESC LIMIT 500').all().map(r=>JSON.parse(r.body)).filter(r=>seatOf(r,user)).slice(0,12).map(r=>({code:r.code,name:r.name,status:r.status,players:r.players.length,capacity:r.capacity,round:r.game?.round||0,updated:r.updated}))}
@@ -99,7 +104,7 @@ const server=http.createServer(async(req,res)=>{
       const room={code,name:String(data.name||map.name).slice(0,40),capacity:map.playerCount,map,host:user.id,players:[{...user,seat:0,ready:true}],status:'lobby',revision:1,game:null,created:Date.now()};
       saveRoom(room);json(res,201,publicRoom(room,user));return;
     }
-    const match=route.match(/^\/api\/rooms\/([A-Z0-9]{6,12})(?:\/(join|events|ready|start|action|leave|map))?$/);
+    const match=route.match(/^\/api\/rooms\/([A-Z0-9]{6,12})(?:\/(join|events|ready|start|action|leave|map|message))?$/);
     if(!match)error('Не найдено',404);
     const [,code,operation]=match;
     if(operation==='join'&&req.method==='POST'){
@@ -127,6 +132,10 @@ const server=http.createServer(async(req,res)=>{
     // Load AFTER the last await: mutations are serialized in the Node event loop.
     const room=loadRoom(code);requireMember(room,user);
     const seat=seatOf(room,user);
+    if(operation==='message'){
+      messages.send(room,seat.seat,data.text,data.capital);
+      broadcast(room);json(res,200,publicRoom(room,user));return;
+    }
     if(data.revision!==room.revision)error('Поле уже изменилось. Повторите действие',409);
     if(operation==='ready'){if(room.status!=='lobby')error('Партия уже началась');seat.ready=!!data.ready;}
     else if(operation==='map'){
@@ -142,10 +151,26 @@ const server=http.createServer(async(req,res)=>{
     }
     else if(operation==='action'){
       if(room.status!=='playing')error('Партия не идёт');
-      room.game=applyAction(room.game,seat.seat,data.action);if(room.game.winner!==null)room.status='finished';
+      const previous=room.game;
+      const undo=data.action?.type==='undo';
+      let entry;
+      if(undo){
+        if(previous.turn!==seat.seat)error('Сейчас ход другого игрока',403);
+        entry=lastUndo(code);if(!entry)error('Нет действий для отмены');
+        room.game=restoreUndoPatch(previous,JSON.parse(entry.body));
+      }else room.game=applyAction(previous,seat.seat,data.action);
+      if(room.game.winner!==null)room.status='finished';
+      db.exec('BEGIN IMMEDIATE');
+      try{
+        if(undo)db.prepare('DELETE FROM room_undo WHERE id=?').run(entry.id);
+        else if(['end','surrender'].includes(data.action.type)||room.status==='finished')db.prepare('DELETE FROM room_undo WHERE room=?').run(code);
+        else db.prepare('INSERT INTO room_undo(room,body) VALUES(?,?)').run(code,JSON.stringify(makeUndoPatch(previous,room.game)));
+        room.revision++;saveRoom(room);db.exec('COMMIT');
+      }catch(e){db.exec('ROLLBACK');throw e}
+      broadcast(room);json(res,200,publicRoom(room,user));return;
     }
     else if(operation==='leave'){
-      if(room.status==='playing')error('Во время партии используйте «Сдаться» в свой ход');
+      if(room.status==='playing')error('Во время партии используйте «Сдаться» в настройках');
       room.players=room.players.filter(p=>p.id!==user.id);
       if(room.host===user.id&&room.players.length){room.host=room.players[0].id;room.players[0].ready=true;}
       for(const s of streams.get(code)||[])if(s.user.id===user.id)s.res.end();
@@ -154,7 +179,7 @@ const server=http.createServer(async(req,res)=>{
   }catch(e){if(!res.headersSent)json(res,e.status||400,{error:e.message||'Не удалось выполнить действие'});else res.end();}
 });
 server.requestTimeout=15000;server.headersTimeout=10000;
-const cleanup=setInterval(()=>{const now=Date.now();for(const [ip,entry]of rate)if(now-entry.time>120000)rate.delete(ip);db.prepare('DELETE FROM sessions WHERE expires<?').run(now)},60000);cleanup.unref();
+const cleanup=setInterval(()=>{const now=Date.now();messages.cleanup(now);for(const [ip,entry]of rate)if(now-entry.time>120000)rate.delete(ip);db.prepare('DELETE FROM sessions WHERE expires<?').run(now)},60000);cleanup.unref();
 const port=Number(process.env.PORT)||3000,host=process.env.HOST||'127.0.0.1';
 server.listen(port,host,()=>console.log(`Antiyoy Friends: http://${host}:${port}`));
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{for(const set of streams.values())for(const s of set)s.res.end();server.close(()=>{db.close();process.exit(0)})});

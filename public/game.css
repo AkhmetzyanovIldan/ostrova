@@ -1,0 +1,52 @@
+/* Match the sparse, full-screen board from the supplied Antiyoy screenshots. */
+body.playing{background:#333;color:#fff;overflow:hidden}
+body.playing .app-header{display:none}
+body.playing .workspace.game-mode{display:block;width:100%;max-width:none;height:100dvh;min-height:0;margin:0;overflow:hidden}
+body.playing .game-mode .side-panel{display:none}
+body.playing .game-mode .map-area{height:100%;min-height:0;background:#333;position:relative;isolation:isolate;overflow:hidden}
+body.playing .map-area:before,body.playing .map-caption,body.playing .map-controls,body.playing .map-bottom{display:none}
+body.playing .game-mode #board{inset:max(80px,14dvh) 4% max(124px,17dvh);z-index:1}
+body.playing .hex-board{overflow:visible;filter:drop-shadow(0 4px 1px #090909);}
+body.playing .tile{stroke:#151515;stroke-width:1.25;transition:fill .12s}
+body.playing .hex:hover .tile{filter:none}
+body.playing .selection-ring{stroke:white;stroke-width:1;filter:none}
+.province-border{stroke:#fff;stroke-width:1.2;stroke-linejoin:round;fill:none;pointer-events:none}
+.target-border{stroke:#b9e3ec;stroke-width:1.5;stroke-linejoin:round;fill:none;pointer-events:none;filter:drop-shadow(0 0 1px #fa7bb3)}
+body.playing .spent-unit{opacity:.65}
+body.playing .map-area.picking{background:#222}
+#game-top{display:none}
+body.playing #game-top{position:absolute;top:calc(max(20px,5dvh) + var(--tg-safe-top));left:2%;right:2%;z-index:5;display:flex;align-items:center;justify-content:space-between;pointer-events:none;color:#fff;font-family:Arial,sans-serif;font-size:clamp(24px,7vw,42px);font-weight:400;line-height:1}
+.hud-treasury{display:flex;align-items:center;gap:0;pointer-events:auto;font-variant-numeric:tabular-nums}
+.hud-treasury img{width:clamp(38px,9vw,60px);height:clamp(38px,9vw,60px);object-fit:contain}
+.hud-profit{position:absolute;left:50%;transform:translateX(-50%);font-variant-numeric:tabular-nums;pointer-events:auto}
+.hud-settings{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;padding:10px;width:44px;height:50px;background:none;color:#fff;pointer-events:auto;filter:drop-shadow(0 1px 2px #000)}
+.hud-settings span{width:6px;height:6px;border-radius:50%;background:#eee}
+body.playing #game-dock{display:block;position:absolute;inset:auto 1% calc(max(12px,3dvh) + max(var(--tg-safe-bottom),env(safe-area-inset-bottom)));z-index:5;pointer-events:none;color:#fff}
+.hud-actions{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;align-items:end;width:100%;}
+.hud-actions button{width:64px;height:64px;padding:0;background:none;justify-self:center;pointer-events:auto;filter:drop-shadow(0 1px 2px #000);border-radius:6px;color:#fff}
+.hud-actions button:first-child{justify-self:start}
+.hud-actions button:last-child{justify-self:end}
+.hud-actions button:disabled{opacity:.35}
+.hud-actions button img,.hud-actions .piece-icon{width:100%;height:100%;object-fit:contain}
+.hud-actions button:first-child img,.hud-actions button:last-child img{padding:8px}
+.hud-actions button[aria-pressed=true]{background:none}
+.purchase-preview{position:absolute;left:50%;bottom:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0;pointer-events:none;font:clamp(26px,7vw,42px)/1.2 Arial,sans-serif;filter:drop-shadow(0 1px 2px #000)}
+.purchase-preview .piece-icon{width:96px;height:96px}
+body.playing #turn-banner{position:absolute;left:12px;right:12px;top:calc(max(68px,11dvh) + var(--tg-safe-top));width:auto;transform:none;text-align:center;pointer-events:none;z-index:4;color:#d3d3d3;font-size:12px}
+body.playing #turn-banner:empty{display:none}
+.game-status{display:inline-block;max-width:100%;overflow-wrap:anywhere}
+body.playing dialog{background:#eee;color:#222;border:0;border-radius:17px;box-shadow:0 6px 12px #0008}
+body.playing dialog::backdrop{background:#0006;backdrop-filter:none}
+body.playing .dialog-head h2{font:24px Arial,sans-serif}
+body.playing .dialog-copy{color:#444}
+.settings-actions{display:flex;flex-direction:column;gap:12px;min-width:230px}
+.settings-actions button{justify-content:flex-start;background:#fff;color:#222;border:1px solid #ddd;box-shadow:none;font-size:17px}
+.settings-actions .danger{color:#a33}
+.settings-foot{display:flex;justify-content:space-between;gap:20px;margin-top:20px}
+#message-text{height:96px;min-height:96px;width:100%;resize:vertical;font:16px/1.4 Arial,sans-serif;border:1px solid #ccc;border-radius:8px;padding:12px;background:#fff;color:#222}
+.message-note{font:12px/1.5 Arial,sans-serif;color:#666}
+.speech-content{color:#222;background:#fff;border:1px solid #111;border-radius:7px;padding:5px 7px;text-align:center;font:11px/1.3 Arial,sans-serif;overflow-wrap:anywhere;box-shadow:0 2px 3px #0006;max-height:65px;overflow:hidden;box-sizing:border-box}
+.speech-arrow{fill:#fff;stroke:#111;stroke-width:.6}
+.speech-bubble{pointer-events:none}
+@media(min-width:800px){body.playing #board{inset:110px max(7%,calc((100vw - 950px)/2)) 155px}body.playing #game-top,body.playing #game-dock{max-width:700px;width:96%;left:50%;right:auto;transform:translateX(-50%)}.hud-actions button{width:65px;height:65px}}
+@media(max-width:380px){.hud-actions button{width:52px;height:56px}.purchase-preview .piece-icon{width:80px;height:85px}.hud-actions button:first-child img,.hud-actions button:last-child img{padding:7px}}

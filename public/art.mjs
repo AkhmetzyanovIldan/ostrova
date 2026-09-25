@@ -1,4 +1,4 @@
-// Lightweight vector game pieces: no font/emoji dependency, crisp at every zoom level.
+// Original Antiyoy sprites by Yiotro. See NOTICE.md for attribution and restrictions.
 export function icon(name,size=20) {
   const paths={
     plus:'M12 5v14M5 12h14',minus:'M5 12h14',close:'m6 6 12 12M18 6 6 18',back:'m14 6-6 6 6 6',arrow:'M4 12h16m-6-6 6 6-6 6',
@@ -19,17 +19,8 @@ export function icon(name,size=20) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.plus}"/></svg>`;
 }
 export const coin='<span class="coin" aria-label="золото"></span>';
-export function piece(type,level=1) {
-  if(type==='pine')return '<path fill="#775336" d="M-2 4h4v10h-4z"/><path fill="#386641" d="m0-19-11 17h5l-8 10H14L6-2h5Z"/><path fill="#498751" d="m0-19-11 17h5l-8 10H0Z"/>';
-  if(type==='palm')return '<path d="m-2 12 3-23 4 1-2 22" fill="#947148"/><path d="M3-11Q-10-25-17-11q12-5 20 0Q9-27 19-14q-10-2-16 3Q-12-14-14-2q8-8 17-9Q16-12 18 0 10-9 3-11Z" fill="#347342"/>';
-  if(type==='grave')return '<path fill="#7d8785" d="M-8 10V-5a8 8 0 0 1 16 0v15Z"/><path fill="#b7c0b4" d="M-8 10V-5a8 8 0 0 1 10-8v23Z"/><path stroke="#7a8980" stroke-width="2" d="M-3-5h6M0-8v9"/>';
-  if(type==='capital')return '<ellipse cy="12" rx="17" ry="4" fill="#233d32" opacity=".14"/><path fill="#f5ebca" d="M-12-4h24v17h-24Z"/><path fill="#d0c399" d="M5-4h7v17H5Z"/><path fill="#9e5738" d="m-17-3 17-15L17-3Z"/><path fill="#bd764b" d="m-17-3 17-15 4 15Z"/><path fill="#564a38" d="M-3 4h7v9h-7Z"/><path fill="#8eaeaf" d="M-9 1h4v5h-4Z"/>';
-  if(type==='farm')return '<path fill="#9e703f" d="M-19 0h22v13h-22Z"/><path stroke="#e7c778" stroke-width="2" d="M-17 2 1 2M-17 6H1m-18 4H1"/><path fill="#f1dbab" d="M2-3h13v15H2Z"/><path fill="#a15e3c" d="m-2-2 10-11L19-2Z"/><path fill="#675037" d="M7 5h5v7H7Z"/>';
-  if(type==='tower'||type==='fort')return `<ellipse cy="13" rx="15" ry="4" fill="#233d32" opacity=".15"/><path fill="${type==='fort'?'#757d7e':'#d4d8ca'}" d="M-10-14h5v5h3v-5h5v5h3v-5h5v10l-2 2 3 16h-23l3-16-2-2Z"/><path fill="${type==='fort'?'#5b6468':'#aebaae'}" d="M3-9h8v5l-2 2 3 16H3Z"/><path fill="#344b48" d="M-3 7a3 3 0 0 1 6 0v7h-6Zm1-12h3v5h-3Z"/>${type==='fort'?'<path d="M0-14v-11l10 3-10 5" stroke="#526661" fill="#e0a460" stroke-width="1.5"/>':''}`;
-  if(type==='unit') {
-    const coat=['','#987345','#8a7764','#858e91','#636e7b'][level];
-    return `<ellipse cy="13" rx="10" ry="3" fill="#233d32" opacity=".18"/><path fill="#3f4a3e" d="M-6 7h5v7h-6Zm7 0h5l1 7H1Z"/><path fill="${coat}" d="M-5-6h10l4 15H-9Z"/><path stroke="#dccaa1" stroke-width="3" d="m-5-3-6 8M5-3l5 8"/><circle cy="-11" r="5" fill="#e7cda1"/>${level===1?'<path fill="#887145" d="M-7-12q1-8 8-5l4 5Z"/>':`<path fill="${level>2?'#b6c3c5':'#8f9082'}" d="M-6-11v-3a6 6 0 0 1 12 0v3Z"/>`}${level>=2?'<path stroke="#715638" stroke-width="2" d="M12 9v-28"/><path fill="#d9e3dc" d="m12-25-3 8 3-1 3 1Z"/>':''}${level>=3?'<path fill="#596a70" stroke="#d7e0ce" d="m-12-4 6 2v6l-6 4-6-4v-6Z"/>':''}${level===4?'<path fill="#bc654e" d="M-1-19q7-13 10-5l-6 7Z"/>':''}`;
-  }
-  return '';
-}
-export function pieceIcon(type,level=1){return `<svg viewBox="-24 -29 48 48" class="piece-icon" aria-hidden="true">${piece(type,level)}</svg>`;}
+export const ASSET_PATH='/assets/antiyoy/';
+export function spriteName(type,level=1){return type==='unit'?['man0','man1','man2','man3'][level-1]:({capital:'castle',farm:'house',tower:'tower',fort:'strong_tower',pine:'pine',palm:'palm',grave:'grave'}[type]);}
+export function piece(type,level=1){const name=spriteName(type,level);return name?`<image href="${ASSET_PATH}${name}.png" x="-24" y="-26" width="48" height="48" preserveAspectRatio="xMidYMid meet"/>`:'';}
+export function pieceIcon(type,level=1){return `<svg viewBox="-24 -29 48 54" class="piece-icon" aria-hidden="true">${piece(type,level)}</svg>`;}
+export function hudImage(name){return `<img src="${ASSET_PATH}${name}.png" alt="" draggable="false">`;}

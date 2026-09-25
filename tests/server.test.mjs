@@ -36,7 +36,7 @@ test('real HTTP multiplayer: permissions, six players, SSE, concurrency, rejoin,
     await stop();await start();const restored=(await users[0](path)).body;assert.equal(restored.game.turn,1);assert.equal(restored.revision,room.revision);
     const map=generateMap({players:2,seed:890});const saved=await users[0]('/api/maps',{map});assert.equal(saved.status,201);assert.equal((await users[0]('/api/maps')).body.length,1);assert.equal((await users[1]('/api/maps')).body.length,0);
     assert.equal((await users[6]('/api/rooms',{map:{cells:{}}})).status,400);
-    const staticResponse=await fetch(base+'/');assert.equal(staticResponse.status,200);assert.match(await staticResponse.text(),/Antiyoy/);
+    const staticResponse=await fetch(base+'/');assert.equal(staticResponse.status,200);assert.match(await staticResponse.text(),/Захватчики/);
     const secretResponse=await fetch(base+'/.env');assert.equal(secretResponse.status,404);
   }finally{await stop()}
 });
@@ -46,5 +46,41 @@ test('lobby host transfer and empty-room reuse remain startable',{timeout:15000}
     let r=(await a('/api/rooms',{map:generateMap({seed:55})})).body,p=`/api/rooms/${r.code}`;r=(await b(p+'/join',{})).body;
     await a(p+'/leave',{revision:r.revision});r=(await b(p)).body;assert.equal(r.host,true);assert.equal(r.players[0].ready,true);
     await b(p+'/leave',{revision:r.revision});r=(await a(p+'/join',{})).body;assert.equal(r.host,true);assert.equal(r.players[0].ready,true);
+  }finally{await stop()}
+});
+
+test('server undo persists across restart, is private to active player and ends with turn; messages do not race moves',{timeout:20000},async()=>{
+  await start();try{
+    const a=client(),b=client(),outsider=client();
+    await a('/api/session',{name:'Undo host'});await b('/api/session',{name:'Undo guest'});await outsider('/api/session',{name:'Outside'});
+    const map=generateMap({players:2,seed:80,trees:false});map.startingMoney=60;
+    let r=(await a('/api/rooms',{map})).body;const path=`/api/rooms/${r.code}`;
+    r=(await b(path+'/join',{})).body;r=(await b(path+'/ready',{revision:r.revision,ready:true})).body;
+    r=(await a(path+'/start',{revision:r.revision})).body;
+    const original=structuredClone(r.game),province=r.game.provinces.find(p=>p.owner===0),to=province.cells.find(id=>!r.game.cells[id].building);
+    assert.equal(r.canUndo,false);
+    r=(await a(path+'/action',{revision:r.revision,action:{type:'recruit',level:2,province:province.capital,to}})).body;
+    assert.equal(r.canUndo,true);assert.equal(r.game.cells[to].unit.level,2);
+    assert.equal((await b(path)).body.canUndo,false);
+    assert.equal((await b(path+'/action',{revision:r.revision,action:{type:'undo'}})).status,403);
+    assert.equal((await a(path+'/action',{revision:r.revision-1,action:{type:'undo'}})).status,409);
+    await stop();await start();r=(await a(path)).body;assert.equal(r.canUndo,true);
+    const revision=r.revision,guestCapital=r.game.provinces.find(p=>p.owner===1).capital;
+    const message=await b(path+'/message',{text:'<img src=x onerror=alert(1)>',capital:province.capital});
+    assert.equal(message.status,200);assert.equal(message.body.revision,revision);
+    assert.equal(message.body.messages[0].capital,guestCapital);assert.equal(message.body.messages[0].seat,1);
+    assert.equal(message.body.messages[0].expiresAt-message.body.serverTime<=5000,true);
+    assert.equal((await b(path+'/message',{text:'Again'})).status,400);
+    assert.equal((await outsider(path+'/message',{text:'Not a member'})).status,403);
+    r=(await a(path+'/action',{revision,action:{type:'undo'}})).body;
+    assert.deepEqual(r.game,original);assert.equal(r.canUndo,false);assert.equal(r.messages.length,1);
+    assert.equal((await a(path+'/action',{revision:r.revision,action:{type:'undo'}})).status,400);
+    r=(await a(path+'/action',{revision:r.revision,action:{type:'build',building:'tower',province:province.capital,to}})).body;
+    assert.equal(r.game.cells[to].building,'tower');assert.equal(r.canUndo,true);
+    r=(await a(path+'/action',{revision:r.revision,action:{type:'end'}})).body;
+    assert.equal(r.canUndo,false);assert.equal((await b(path+'/action',{revision:r.revision,action:{type:'undo'}})).status,400);
+    r=(await a(path+'/action',{revision:r.revision,action:{type:'surrender'}})).body;
+    assert.equal(r.status,'finished');assert.equal(r.game.winner,1);
+    assert.equal((await b(path+'/message',{text:'Finished'})).status,400);
   }finally{await stop()}
 });
